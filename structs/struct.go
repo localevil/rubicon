@@ -2,9 +2,10 @@ package structs
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
-const crcCcittTable = [...]uint{
+var crcCcittTable = [...]uint16{
 	0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
 	0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
 	0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
@@ -38,14 +39,18 @@ const crcCcittTable = [...]uint{
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78}
 
-func calcCrcCcitt(buf *uint8, cnt uint32, startValue uint16) uint16 {
+func CalcCrcCcitt(buf []byte, cnt uint32, startValue uint16) [2]byte {
+	fmt.Println("Begin clac CRC")
 	crc := startValue
+	count := 0
 	for cnt > 0 {
-		crc = (crc >> 8) ^ crcCcittTable[(crc^*buf)&0xff]
-		*buf++
+		crc = (crc >> 8) ^ crcCcittTable[(crc^uint16(buf[count]))&0xff]
+		count++
 		cnt--
 	}
-	return crc
+	var res [2]byte
+	binary.BigEndian.PutUint16(res[:], crc)
+	return res
 }
 
 type Hid_t struct {
@@ -65,6 +70,17 @@ type Package_t struct {
 	InfoPart       [255]byte
 	CrcValue       [2]byte
 	SequenceNumber uint16
+}
+
+func (p *Package_t) ToByteSlice() []byte {
+	b := make([]byte, 2)
+	copy(b, p.BeginSequence[:])
+	infoPart := make([]byte, p.InfoPartLen)
+	copy(infoPart, p.InfoPart[:p.InfoPartLen])
+	res := append(b, p.ReciverAddres.Serialization()...)
+	res = append(res, byte(p.InfoPartLen))
+	return append(res, infoPart...)
+
 }
 
 func (h *Hid_t) Deserialization(slice []byte, len int) {
