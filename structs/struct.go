@@ -2,7 +2,7 @@ package structs
 
 import (
 	"encoding/binary"
-	"fmt"
+	"unsafe"
 )
 
 var crcCcittTable = [...]uint16{
@@ -40,7 +40,6 @@ var crcCcittTable = [...]uint16{
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78}
 
 func CalcCrcCcitt(buf []byte, cnt uint32, startValue uint16) [2]byte {
-	fmt.Println("Begin clac CRC")
 	crc := startValue
 	count := 0
 	for cnt > 0 {
@@ -63,24 +62,104 @@ type Snid_t struct {
 	id uint16
 }
 
-type Package_t struct {
-	BeginSequence  [2]byte
+type data_t interface {
+	ToByteSlice() []byte
+	Size() uint8
+	getCommand() uint8
+}
+
+type handShakeData struct {
+	fild uint32
+}
+
+func (h *handShakeData) ToByteSlice() []byte {
+	f := make([]byte, 4)
+	binary.BigEndian.PutUint32(f, h.fild)
+	return append(append([]byte{}, byte(h.getCommand())), f...)
+}
+
+func (h *handShakeData) Size() uint8 {
+	return uint8(unsafe.Sizeof(h.fild) + unsafe.Sizeof(h.getCommand()))
+}
+
+func (h *handShakeData) getCommand() uint8 {
+	return 0xEE
+}
+
+type FirmwareVersionData struct {
+}
+
+func (f *FirmwareVersionData) ToByteSlice() []byte {
+	return append([]byte{}, byte(f.getCommand()))
+}
+
+func (f *FirmwareVersionData) Size() uint8 {
+	return uint8(unsafe.Sizeof(f.getCommand()))
+}
+
+func (f *FirmwareVersionData) getCommand() uint8 {
+	return 0x80
+}
+
+type Command_t struct {
+	Command uint8
+}
+
+func (c *Command_t) ToByteSlice() []byte {
+	comm := make([]byte, 1)
+	comm[0] = byte(c.Command)
+	return comm
+}
+
+func (c *Command_t) Size() uint8 {
+	return uint8(unsafe.Sizeof(c.Command))
+}
+
+type package_t struct {
+	beginSequence  [2]byte
 	ReciverAddres  Hid_t
 	InfoPartLen    uint8
-	InfoPart       [255]byte
+	InfoPart       []byte
 	CrcValue       [2]byte
 	SequenceNumber uint16
 }
 
-func (p *Package_t) ToByteSlice() []byte {
+func NewPackage_t(isMaster bool, reciverAddres Hid_t, infoPart data_t,
+	sequenceNumber *uint16) package_t {
+	newPackage := package_t{
+		ReciverAddres:  reciverAddres,
+		InfoPart:       infoPart.ToByteSlice(),
+		InfoPartLen:    infoPart.Size(),
+		SequenceNumber: *sequenceNumber}
+
+	newPackage.AvuIsMaster(isMaster)
+	newPackage.CrcValue = CalcCrcCcitt(newPackage.ToCrcBuffer(), uint32(len(newPackage.ToCrcBuffer())), 0xFFFE)
+	*sequenceNumber++
+	return newPackage
+}
+
+func (p *package_t) AvuIsMaster(flag bool) {
+	if flag {
+		p.beginSequence = [2]byte{0xB6, 0x49}
+	} else {
+		p.beginSequence = [2]byte{0xB9, 0x46}
+	}
+}
+
+func (p *package_t) ToCrcBuffer() []byte {
 	b := make([]byte, 2)
-	copy(b, p.BeginSequence[:])
-	infoPart := make([]byte, p.InfoPartLen)
-	copy(infoPart, p.InfoPart[:p.InfoPartLen])
+	copy(b, p.beginSequence[:])
 	res := append(b, p.ReciverAddres.Serialization()...)
 	res = append(res, byte(p.InfoPartLen))
-	return append(res, infoPart...)
-
+	return append(res, p.InfoPart...)
+}
+func (p *package_t) ToByteSlice() []byte {
+	c := make([]byte, 2)
+	copy(c, p.CrcValue[:])
+	s := make([]byte, 2)
+	binary.BigEndian.PutUint16(s, p.SequenceNumber)
+	res := append(c, s...)
+	return append(p.ToCrcBuffer(), res...)
 }
 
 func (h *Hid_t) Deserialization(slice []byte, len int) {
