@@ -1,9 +1,10 @@
 package main
 
 import (
-	"../structs"
 	"fmt"
 	"net"
+
+	"../structs"
 )
 
 var transactionCount = uint16(0)
@@ -19,7 +20,9 @@ func main() {
 func send(conn net.Conn) {
 	defer conn.Close()
 	for {
-		message := structs.NewPackage_t(true, structs.Hid_t{0x22, 1975}, structs.FirmwareVersionData{},
+		message := structs.NewPackage_t(true,
+			structs.Hid_t{Type_t: 0x22, Serial: 1975},
+			&structs.FirmwareVersionData{},
 			&transactionCount)
 
 		fmt.Println(message.ToByteSlice())

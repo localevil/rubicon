@@ -124,8 +124,7 @@ type package_t struct {
 	SequenceNumber uint16
 }
 
-func NewPackage_t(isMaster bool, reciverAddres Hid_t, infoPart data_t,
-	sequenceNumber *uint16) package_t {
+func NewPackage_t(isMaster bool, reciverAddres Hid_t, infoPart data_t, sequenceNumber *uint16) package_t {
 	newPackage := package_t{
 		ReciverAddres:  reciverAddres,
 		InfoPart:       infoPart.ToByteSlice(),
@@ -133,7 +132,7 @@ func NewPackage_t(isMaster bool, reciverAddres Hid_t, infoPart data_t,
 		SequenceNumber: *sequenceNumber}
 
 	newPackage.AvuIsMaster(isMaster)
-	newPackage.CrcValue = CalcCrcCcitt(newPackage.ToCrcBuffer(), uint32(len(newPackage.ToCrcBuffer())), 0xFFFE)
+	newPackage.CrcValue = CalcCrcCcitt(newPackage.ToCrcBuffer(), uint32(len(newPackage.ToCrcBuffer())), 0x0000)
 	*sequenceNumber++
 	return newPackage
 }
