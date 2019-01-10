@@ -6,6 +6,8 @@ import (
 	"net"
 )
 
+var transactionCount = uint16(0)
+
 func main() {
 	conn, err := net.Dial("tcp", "10.0.40.199:2000")
 	if err != nil {
@@ -17,24 +19,24 @@ func main() {
 func send(conn net.Conn) {
 	defer conn.Close()
 	for {
-		str := "Hello"
-		message := structs.Package_t{}
-		message.BeginSequence = [2]byte{0xB6, 0x49}
-		message.ReciverAddres = structs.Hid_t{0x22, 1975}
-		message.InfoPartLen = uint8(len(str))
-		copy(message.InfoPart[:message.InfoPartLen], str[:])
-		//buf := message.ToByteSlice()
-		//size := uint32(len(buf))
-		fmt.Println(str)
-		//message.CrcValue = structs.CalcCrcCcitt(buf, size, 0xFFFE)
+		message := structs.NewPackage_t(true, structs.Hid_t{0x22, 1975}, structs.FirmwareVersionData{},
+			&transactionCount)
 
-		//fmt.Println(message.Serialization())
-		//conn.Write(message.Serialization())
-		buffer := make([]byte, (1024 * 4))
-		length, err := conn.Read(buffer)
+		fmt.Println(message.ToByteSlice())
+		n, err := conn.Write(message.ToByteSlice())
 		if err != nil {
 			fmt.Println(err)
+			continue
 		}
-		fmt.Println(buffer[:length])
+		buf := make([]byte, 265)
+		n, err = conn.Read(buf)
+		if n == 0 || err != nil {
+			fmt.Println(err)
+			fmt.Scanln()
+			continue
+		}
+
+		fmt.Println(buf[:n])
+		fmt.Scanln()
 	}
 }
