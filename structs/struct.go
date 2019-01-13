@@ -39,7 +39,9 @@ var crcCcittTable = [...]uint16{
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78}
 
-func CalcCrcCcitt(buf []byte, cnt uint32, startValue uint16) [2]byte {
+//CalcCrcCcitt Calculate CRC16 CCITT
+func CalcCrcCcitt(buf []byte, startValue uint16) [2]byte {
+	cnt := len(buf)
 	crc := startValue
 	count := 0
 	for cnt > 0 {
@@ -48,96 +50,205 @@ func CalcCrcCcitt(buf []byte, cnt uint32, startValue uint16) [2]byte {
 		cnt--
 	}
 	var res [2]byte
-	binary.BigEndian.PutUint16(res[:], crc)
+	binary.LittleEndian.PutUint16(res[:], crc)
 	return res
 }
 
-type Hid_t struct {
-	Type_t uint8
+//HidT struct
+type HidT struct {
+	TypeT  uint8
 	Serial uint16
 }
 
-type Snid_t struct {
-	sn uint32
-	id uint16
+//Deserialization parse byte slice to fill HidT
+func (h *HidT) Deserialization(slice []byte) {
+	h.TypeT = uint8(slice[0])
+	h.Serial = binary.LittleEndian.Uint16(slice[1:3])
 }
 
-type data_t interface {
+//Serialization convert HidT to byte slice
+func (h *HidT) Serialization() []byte {
+	t := make([]byte, 1)
+	t[0] = byte(h.TypeT)
+	s := make([]byte, 2)
+	binary.LittleEndian.PutUint16(s, h.Serial)
+	return append(t, s...)
+}
+
+//type SnidT struct {
+//	sn uint32
+//	id uint16
+//}
+
+//DataT struct
+type DataT interface {
 	ToByteSlice() []byte
 	Size() uint8
 	getCommand() uint8
+	IsGetResponse() bool
 }
 
-type handShakeData struct {
-	fild uint32
+//HandShake struct
+type HandShake struct {
 }
 
-func (h *handShakeData) ToByteSlice() []byte {
-	f := make([]byte, 4)
-	binary.BigEndian.PutUint32(f, h.fild)
-	return append(append([]byte{}, byte(h.getCommand())), f...)
+//ToByteSlice convert to byte slice HandShake
+func (h *HandShake) ToByteSlice() []byte {
+	return append([]byte{}, byte(h.getCommand()))
 }
 
-func (h *handShakeData) Size() uint8 {
-	return uint8(unsafe.Sizeof(h.fild) + unsafe.Sizeof(h.getCommand()))
+//Size return size of HandShake
+func (h *HandShake) Size() uint8 {
+	return uint8(unsafe.Sizeof(h.getCommand()))
 }
 
-func (h *handShakeData) getCommand() uint8 {
+func (h *HandShake) getCommand() uint8 {
 	return 0xEE
 }
 
-type FirmwareVersionData struct {
+func (h.HandShake) Is
+
+type responseBase struct {
+	stateword uint8
+	command   uint8
+	retcode   uint16
 }
 
-func (f *FirmwareVersionData) ToByteSlice() []byte {
+func (r *responseBase) deserialization(buf []byte) {
+	r.stateword = uint8(buf[0])
+	r.command = uint8(buf[1])
+	r.retcode = binary.LittleEndian.Uint16(buf[2:4])
+}
+
+//HandShakeResponse struct
+type HandShakeResponse struct {
+	base          responseBase
+	version       uint8
+	typeM         uint8
+	timeout       uint32
+	interval      uint32
+	features      uint32
+	additionalLen uint8
+	additional    []byte
+}
+
+//NewHandShakeResponse handShakeResponse constructor
+func NewHandShakeResponse(buf []byte) *HandShakeResponse {
+	newResponseBase := responseBase{}
+	newResponseBase.deserialization(buf)
+	newHandShakeResponse := HandShakeResponse{
+		base:          newResponseBase,
+		version:       uint8(buf[4]),
+		typeM:         uint8(buf[5]),
+		timeout:       binary.LittleEndian.Uint32(buf[6:10]),
+		interval:      binary.LittleEndian.Uint32(buf[10:14]),
+		features:      binary.LittleEndian.Uint32(buf[14:18]),
+		additionalLen: uint8(buf[18])}
+	if newHandShakeResponse.additionalLen > 0 {
+		newHandShakeResponse.additional = buf[20:]
+	}
+	return &newHandShakeResponse
+}
+
+//FirmwareVersion struct
+type FirmwareVersion struct {
+}
+
+//ToByteSlice convert to byte slice FirmwareVersionData
+func (f *FirmwareVersion) ToByteSlice() []byte {
 	return append([]byte{}, byte(f.getCommand()))
 }
 
-func (f *FirmwareVersionData) Size() uint8 {
+//Size return size of FirmwareVersionData
+func (f *FirmwareVersion) Size() uint8 {
 	return uint8(unsafe.Sizeof(f.getCommand()))
 }
 
-func (f *FirmwareVersionData) getCommand() uint8 {
-	return 0x80
+func (f *FirmwareVersion) getCommand() uint8 {
+	return uint8(0x80)
 }
 
-type Command_t struct {
-	Command uint8
+//FirmwareVersionResponse struct
+type FirmwareVersionResponse struct {
+	base       responseBase
+	hardware   uint32
+	build      uint32
+	time       uint32
+	serial     uint32
+	clientCode uint32
 }
 
-func (c *Command_t) ToByteSlice() []byte {
-	comm := make([]byte, 1)
-	comm[0] = byte(c.Command)
-	return comm
+//NewFirmwareVersionResponse FirmwareVersionResponse constructor
+func NewFirmwareVersionResponse(buf []byte) *FirmwareVersionResponse {
+	newResponseBase := responseBase{}
+	newResponseBase.deserialization(buf)
+	newFirmwareVersionResponse := FirmwareVersionResponse{
+		base:       newResponseBase,
+		hardware:   binary.LittleEndian.Uint32(buf[4:8]),
+		build:      binary.LittleEndian.Uint32(buf[8:12]),
+		time:       binary.LittleEndian.Uint32(buf[12:16]),
+		serial:     binary.LittleEndian.Uint32(buf[16:20]),
+		clientCode: binary.LittleEndian.Uint32(buf[20:])}
+	return &newFirmwareVersionResponse
 }
 
-func (c *Command_t) Size() uint8 {
-	return uint8(unsafe.Sizeof(c.Command))
+//StatusWord struct
+type StatusWord struct {
 }
 
-type package_t struct {
+//ToByteSlice convert to byte slice StatusWord
+func (s *StatusWord) ToByteSlice() []byte {
+	return append([]byte{}, byte(s.getCommand()))
+}
+
+//Size return size of StatusWord
+func (s *StatusWord) Size() uint8 {
+	return uint8(unsafe.Sizeof(s.getCommand()))
+}
+
+func (s *StatusWord) getCommand() uint8 {
+	return 0x81
+}
+
+//StatusWordResponse struct
+type StatusWordResponse struct {
+	base responseBase
+}
+
+//NewStatusWordResponse StatusWordResponse constructor
+func NewStatusWordResponse(buf []byte) *StatusWordResponse {
+	newResponseBase := responseBase{}
+	newResponseBase.deserialization(buf)
+	newStatusWordResponse := StatusWordResponse{
+		base: newResponseBase}
+	return &newStatusWordResponse
+}
+
+//RequestPackage struct
+type RequestPackage struct {
 	beginSequence  [2]byte
-	ReciverAddres  Hid_t
+	ReciverAddres  HidT
 	InfoPartLen    uint8
 	InfoPart       []byte
 	CrcValue       [2]byte
 	SequenceNumber uint16
 }
 
-func NewPackage_t(isMaster bool, reciverAddres Hid_t, infoPart data_t, sequenceNumber *uint16) package_t {
-	newPackage := package_t{
+//NewRequestPackage RequestPackage constructor
+func NewRequestPackage(isMaster bool, reciverAddres HidT, infoPart DataT, sequenceNumber *uint16) RequestPackage {
+	newPackage := RequestPackage{
 		ReciverAddres:  reciverAddres,
 		InfoPart:       infoPart.ToByteSlice(),
 		InfoPartLen:    infoPart.Size(),
 		SequenceNumber: *sequenceNumber}
 
-	newPackage.AvuIsMaster(isMaster)
-	newPackage.CrcValue = CalcCrcCcitt(newPackage.ToCrcBuffer(), uint32(len(newPackage.ToCrcBuffer())), 0x0000)
+	newPackage.avuIsMaster(isMaster)
+	newPackage.CrcValue = CalcCrcCcitt(newPackage.toCrcBuffer(), 0x0000)
 	*sequenceNumber++
 	return newPackage
 }
 
-func (p *package_t) AvuIsMaster(flag bool) {
+func (p *RequestPackage) avuIsMaster(flag bool) {
 	if flag {
 		p.beginSequence = [2]byte{0xB6, 0x49}
 	} else {
@@ -145,31 +256,52 @@ func (p *package_t) AvuIsMaster(flag bool) {
 	}
 }
 
-func (p *package_t) ToCrcBuffer() []byte {
+func (p *RequestPackage) toCrcBuffer() []byte {
 	b := make([]byte, 2)
 	copy(b, p.beginSequence[:])
 	res := append(b, p.ReciverAddres.Serialization()...)
 	res = append(res, byte(p.InfoPartLen))
 	return append(res, p.InfoPart...)
 }
-func (p *package_t) ToByteSlice() []byte {
+
+//ToByteSlice convert to byte slice RequestPackage
+func (p *RequestPackage) ToByteSlice() []byte {
 	c := make([]byte, 2)
 	copy(c, p.CrcValue[:])
 	s := make([]byte, 2)
-	binary.BigEndian.PutUint16(s, p.SequenceNumber)
+	binary.LittleEndian.PutUint16(s, p.SequenceNumber)
 	res := append(c, s...)
-	return append(p.ToCrcBuffer(), res...)
+	return append(p.toCrcBuffer(), res...)
 }
 
-func (h *Hid_t) Deserialization(slice []byte, len int) {
-	h.Type_t = uint8(slice[0])
-	h.Serial = binary.BigEndian.Uint16(slice[1:len])
+//ResponsePackage struct
+type ResponsePackage struct {
+	beginSequence   [2]byte
+	ReceiverAddress HidT
+	InfoPartLen     uint8
+	InfoPart        []byte
+	CrcValue        [2]byte
+	SequenceNumber  uint16
 }
 
-func (h *Hid_t) Serialization() []byte {
-	t := make([]byte, 1)
-	t[0] = byte(h.Type_t)
-	s := make([]byte, 2)
-	binary.BigEndian.PutUint16(s, h.Serial)
-	return append(t, s...)
+//NewResponsePackage responsePackage constructor
+func NewResponsePackage(buf []byte) *ResponsePackage {
+	newResponsePackage := ResponsePackage{}
+	newResponsePackage.beginSequence = [2]byte{buf[0], buf[1]}
+	hid := HidT{}
+	hid.Deserialization(buf[2:5])
+	newResponsePackage.ReceiverAddress = hid
+	newResponsePackage.InfoPartLen = uint8(buf[5])
+	next := newResponsePackage.InfoPartLen + 6
+	newResponsePackage.InfoPart = buf[6:next]
+	newResponsePackage.CrcValue = [2]byte{buf[next], buf[next+1]}
+	crc := CalcCrcCcitt(buf[0:next], 0)
+	if newResponsePackage.CrcValue != crc {
+		errStr := "Corrupted data: clac = [" + string(crc[0]) + " " + string(crc[1]) +
+			"] responce = [" + string(newResponsePackage.CrcValue[0]) + " " + string(newResponsePackage.CrcValue[1]) + "]"
+		panic(errStr)
+	}
+	next += 2
+	newResponsePackage.SequenceNumber = binary.LittleEndian.Uint16(buf[next:])
+	return &newResponsePackage
 }
