@@ -1,7 +1,10 @@
-package structs
+package main
 
 import (
 	"encoding/binary"
+	"fmt"
+	"log"
+	"unsafe"
 )
 
 var crcCcittTable = [...]uint16{
@@ -38,8 +41,7 @@ var crcCcittTable = [...]uint16{
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78}
 
-//CalcCrcCcitt Calculate CRC16 CCITT
-func CalcCrcCcitt(buf []byte, startValue uint16) [2]byte {
+func calcCrcCcitt(buf []byte, startValue uint16) [2]byte {
 	cnt := len(buf)
 	crc := startValue
 	count := 0
@@ -53,20 +55,17 @@ func CalcCrcCcitt(buf []byte, startValue uint16) [2]byte {
 	return res
 }
 
-//Hid struct
-type Hid struct {
+type hid struct {
 	TypeT  uint8
 	Serial uint16
 }
 
-//Deserialization parse byte slice to fill HidT
-func (h *Hid) Deserialization(slice []byte) {
+func (h *hid) deserialization(slice []byte) {
 	h.TypeT = uint8(slice[0])
 	h.Serial = binary.LittleEndian.Uint16(slice[1:3])
 }
 
-//Serialization convert HidT to byte slice
-func (h *Hid) Serialization() []byte {
+func (h *hid) serialization() []byte {
 	t := make([]byte, 1)
 	t[0] = byte(h.TypeT)
 	s := make([]byte, 2)
@@ -74,36 +73,92 @@ func (h *Hid) Serialization() []byte {
 	return append(t, s...)
 }
 
-//type SnidT struct {
-//	sn uint32
-//	id uint16
-//}
+type snid struct {
+	sn uint32
+	id uint16
+}
 
-//RequestPackage struct
-type RequestPackage struct {
+func newSnid(devType int, serialNum int, addrPlubNum int, addrDev *int, addrSub *int) *snid {
+	addrPlub := []int{0xB000, 0xA000}
+
+	sn := uint32(devType << 24)
+	sn = sn | uint32((serialNum&0xFFFF)<<8)
+
+	id := uint16(addrPlub[addrPlubNum&0x1])
+	if addrDev != nil {
+		id = id | uint16((*addrDev&0xFF)<<4)
+	}
+	if addrSub != nil {
+		id = id | uint16(*addrSub&0xF)
+	}
+	return &snid{
+		sn: sn,
+		id: id}
+}
+
+func (s *snid) serialization() []byte {
+	sn := make([]byte, 4)
+	binary.LittleEndian.PutUint32(sn, s.sn)
+	id := make([]byte, 2)
+	binary.LittleEndian.PutUint16(id, s.id)
+	return append(sn, id...)
+}
+
+func (s *snid) typeOfSind() uint32 {
+	return (s.sn >> 24)
+}
+
+func (s *snid) serialNumber() uint32 {
+	return ((s.sn >> 8) & 0xFFFF)
+}
+
+func (s *snid) addressPlume() uint16 {
+	return ((s.id & 0x7FFF) >> 12)
+}
+
+func (s *snid) shortAddress() uint16 {
+	return ((s.id >> 4) & 0xFF)
+}
+
+func (s *snid) logicSubDevNum() uint16 {
+	return (s.id & 0xF)
+}
+
+func (s *snid) deserialization(buf []byte) *snid {
+	*s = snid{
+		sn: binary.LittleEndian.Uint32(buf[:4]),
+		id: binary.LittleEndian.Uint16(buf[4:6])}
+	return s
+}
+
+func (s *snid) size() uint8 {
+	return uint8(unsafe.Sizeof(s.sn) + unsafe.Sizeof(s.id))
+}
+
+type requestPackage struct {
 	beginSequence  [2]byte
-	ReciverAddres  Hid
+	ReciverAddres  hid
 	InfoPartLen    uint8
-	InfoPart       Command
+	InfoPart       command
 	CrcValue       [2]byte
 	SequenceNumber uint16
 }
 
-//NewRequestPackage RequestPackage constructor
-func NewRequestPackage(isMaster bool, reciverAddres Hid, infoPart Command, sequenceNumber *uint16) RequestPackage {
-	newPackage := RequestPackage{
+func newRequestPackage(isMaster bool, reciverAddres hid, infoPart command, sequenceNumber *uint16) requestPackage {
+	newPackage := requestPackage{
 		ReciverAddres:  reciverAddres,
 		InfoPart:       infoPart,
-		InfoPartLen:    infoPart.Size(),
+		InfoPartLen:    infoPart.size(),
 		SequenceNumber: *sequenceNumber}
 
 	newPackage.avuIsMaster(isMaster)
-	newPackage.CrcValue = CalcCrcCcitt(newPackage.toCrcBuffer(), 0x0000)
+	newPackage.CrcValue = calcCrcCcitt(newPackage.toCrcBuffer(), 0x0000)
 	*sequenceNumber++
+	fmt.Println("Count:", *sequenceNumber)
 	return newPackage
 }
 
-func (p *RequestPackage) avuIsMaster(flag bool) {
+func (p *requestPackage) avuIsMaster(flag bool) {
 	if flag {
 		p.beginSequence = [2]byte{0xB6, 0x49}
 	} else {
@@ -111,16 +166,16 @@ func (p *RequestPackage) avuIsMaster(flag bool) {
 	}
 }
 
-func (p *RequestPackage) toCrcBuffer() []byte {
+func (p *requestPackage) toCrcBuffer() []byte {
+
 	b := make([]byte, 2)
 	copy(b, p.beginSequence[:])
-	res := append(b, p.ReciverAddres.Serialization()...)
+	res := append(b, p.ReciverAddres.serialization()...)
 	res = append(res, byte(p.InfoPartLen))
-	return append(res, p.InfoPart.ToByteSlice()...)
+	return append(res, p.InfoPart.toByteSlice()...)
 }
 
-//ToByteSlice convert to byte slice RequestPackage
-func (p *RequestPackage) ToByteSlice() []byte {
+func (p *requestPackage) ToByteSlice() []byte {
 	c := make([]byte, 2)
 	copy(c, p.CrcValue[:])
 	s := make([]byte, 2)
@@ -129,32 +184,30 @@ func (p *RequestPackage) ToByteSlice() []byte {
 	return append(p.toCrcBuffer(), res...)
 }
 
-//ResponsePackage struct
-type ResponsePackage struct {
+type responsePackage struct {
 	beginSequence   [2]byte
-	ReceiverAddress Hid
+	ReceiverAddress hid
 	InfoPartLen     uint8
 	InfoPart        []byte
 	CrcValue        [2]byte
 	SequenceNumber  uint16
 }
 
-//NewResponsePackage responsePackage constructor
-func NewResponsePackage(buf []byte) *ResponsePackage {
-	newResponsePackage := ResponsePackage{}
+func newResponsePackage(buf []byte) *responsePackage {
+	newResponsePackage := responsePackage{}
 	newResponsePackage.beginSequence = [2]byte{buf[0], buf[1]}
-	hid := Hid{}
-	hid.Deserialization(buf[2:5])
+	hid := hid{}
+	hid.deserialization(buf[2:5])
 	newResponsePackage.ReceiverAddress = hid
 	newResponsePackage.InfoPartLen = uint8(buf[5])
-	next := newResponsePackage.InfoPartLen + 6
+	next := uint16(newResponsePackage.InfoPartLen) + 6
 	newResponsePackage.InfoPart = buf[6:next]
 	newResponsePackage.CrcValue = [2]byte{buf[next], buf[next+1]}
-	crc := CalcCrcCcitt(buf[0:next], 0)
+	crc := calcCrcCcitt(buf[0:next], 0)
 	if newResponsePackage.CrcValue != crc {
 		errStr := "Corrupted data: clac = [" + string(crc[0]) + " " + string(crc[1]) +
 			"] responce = [" + string(newResponsePackage.CrcValue[0]) + " " + string(newResponsePackage.CrcValue[1]) + "]"
-		panic(errStr)
+		log.Println(errStr)
 	}
 	next += 2
 	newResponsePackage.SequenceNumber = binary.LittleEndian.Uint16(buf[next:])

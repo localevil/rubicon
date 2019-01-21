@@ -1,6 +1,7 @@
 package requestsender
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -18,9 +19,10 @@ func (c *connectionInfo) SetConnectionInfo(protocol string, address string, port
 }
 
 func (c *connectionInfo) connect() net.Conn {
-	conn, err := net.Dial(c.protocol, c.address+strconv.Itoa(c.port))
+	conn, err := net.Dial(c.protocol, c.address+":"+strconv.Itoa(c.port))
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
+	fmt.Println("Connect to", c.address, ":", c.port, "by", c.protocol)
 	return conn
 }

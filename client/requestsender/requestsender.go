@@ -1,73 +1,82 @@
 package requestsender
 
 import (
+	"fmt"
 	"net"
 	"sync"
-
-	"../../structs"
 )
+
+//ResponseHandlerT type
+type ResponseHandlerT func([]byte)
+
+//Request 123
+type Request struct {
+	Buffer  []byte
+	Handler ResponseHandlerT
+	Name    string
+}
 
 //Sender struct
 type Sender struct {
 	connectionInfo
-	conn             net.Conn
-	query            chan structs.RequestPackage
-	wg               *sync.WaitGroup
-	transactionCount uint16
-	hid              structs.Hid
+	conn  net.Conn
+	queue chan Request
+	wg    *sync.WaitGroup
 }
 
-//Start sending command from query
+//Start sending command from queue
 func (s *Sender) Start() {
 	s.conn = s.connect()
-	go s.sendCommands()
-	s.wg.Add(1)
+	go s.process()
 }
 
 //Stop stop
 func (s *Sender) Stop() {
 	s.conn.Close()
+	close(s.queue)
 }
 
 //SetWaitGroup setting wait group
 func (s *Sender) SetWaitGroup(wg *sync.WaitGroup) {
+	s.queue = make(chan Request)
 	s.wg = wg
 }
 
-//SetHid setting HID
-func (s *Sender) SetHid(hid structs.Hid) {
-	s.hid = hid
+func (s *Sender) tryReconnect() {
+	s.conn = s.connect()
 }
 
-func (s *Sender) handleCommand(command structs.Command) structs.RecivedDate {
+func (s *Sender) handleCommand(request Request) {
 	buffer := make([]byte, 265)
 	size, err := s.conn.Read(buffer)
 	if size == 0 || err != nil {
-		panic(err)
+		fmt.Println(err)
+		return
 	}
-	response := structs.NewResponsePackage(buffer[:size])
+	if request.Handler != nil {
+		request.Handler(buffer[:size])
+	}
+	fmt.Println("Finish sending: ", request.Name)
+}
+
+func (s *Sender) process() {
+	s.wg.Add(1)
 	defer s.wg.Done()
-	return command.GetResponse(response.InfoPart)
-}
-
-func (s *Sender) sendCommands() {
-	for sendPackage := range s.query {
-		_, err := s.conn.Write(sendPackage.ToByteSlice())
+	fmt.Println("Start sending commands")
+	for request := range s.queue {
+		fmt.Println("Start sending: ", request.Name)
+		fmt.Printf("> % x\n", request.Buffer)
+		_, err := s.conn.Write(request.Buffer)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			continue
 		}
-		s.handleCommand(sendPackage.InfoPart)
+		s.handleCommand(request)
 	}
+	fmt.Println("Stop sending commands")
 }
 
-//AddCommand put conmmand to query in sender
-func (s *Sender) AddCommand(command structs.Command, hid ...structs.Hid) {
-	if len(hid) == 0 {
-		s.query <- structs.NewRequestPackage(true, s.hid, command, &s.transactionCount)
-	} else {
-		for i := 0; i < len(hid); i++ {
-			s.query <- structs.NewRequestPackage(true, hid[i], command, &s.transactionCount)
-		}
-	}
-
+//AddCommand put conmmand to queue in sender
+func (s *Sender) AddCommand(request Request) {
+	s.queue <- request
 }

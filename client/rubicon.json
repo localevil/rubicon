@@ -1,0 +1,17 @@
+{
+    "schemaVersion" : "undefined",
+    "devices" : [
+        {
+            "type" : "securitySystem",
+            "models": [
+                { "brand" : "Rubicon", "model": "PPK-E", "firmware" : "auto", "connectionType" : ["tcp", "udp", "rs-485"] }
+            ]
+        },
+        {
+            "type" : "securitySystem",
+            "models": [
+                { "brand" : "Rubicon", "model": "PPK-M", "firmware" : "auto", "connectionType" : ["rs-485"] }
+            ]
+        }        
+    ]
+}

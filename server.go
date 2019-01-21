@@ -1,9 +1,10 @@
 package main
 
 import (
-	"./structs"
 	"fmt"
 	"net"
+
+	"./structs"
 )
 
 func main() {
