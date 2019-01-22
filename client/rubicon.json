@@ -5,13 +5,383 @@
             "type" : "securitySystem",
             "models": [
                 { "brand" : "Rubicon", "model": "PPK-E", "firmware" : "auto", "connectionType" : ["tcp", "udp", "rs-485"] }
+            ],
+            "settings" : [
+                {"name" : "Connnection type", "type" : "string", "current" : "IP address", "enum" : [{"value" : "IP address"}, {"value" : "Serial port"}], "keep" : true},
+                {"name" : "IP connection setting", "type" : "group",
+                "settings" : [
+                    {"name" : "IP address", "type" : "string", "current" : "", "keep" : true},
+                    {"name" : "ip port", "type" : "string", "current" : "2000", "keep" : true}
+                ]},
+                {"name" : "Serial port setting", "type" : "group",
+                    "settings" : [
+                    {"name" : "Serial Port", "type" : "string", "current" : "COM1", "enum" : [{"value" : "COM1"}, {"value" : "COM2"}], "keep" : true},
+                    {"name" : "Baudrate", "type" : "integer", "current" : 4096, "enum" : [{"value" : 4096}, {"value" : 38400}], "keep" : true}
+                ]}
+            ],
+            "states" : [
+            {"name" : "", "type" : "failure"},
+                {"name" : "connected", "type" : "normal"}
+            ],
+            "visualisations" : [
+                {
+                    "name" : "as image", "type" : "image",
+                    "states" : [
+                        {"name" : "", "image" : "map/deviceDisconnected"},
+                        {"name" : "connected", "image" : "map/deviceConnected"}
+                    ]
+                }
+            ],
+            "units" : [
+                {
+                    "name" : "door", "license" : "",
+                    "stages" : [
+                        {"name" : "open"},
+                        {"name" : "close"}
+                    ],
+                    "units" : [
+                        {
+                            "name" : "Button",  "type" : "button", 
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ] 
+                        },
+                        {
+                            "name" : "Reed switch", "type" : "reed switch",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {
+                            "name" : "Reader", "type" : "reader",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {
+                            "name" : "relay", "type" : "Two Phase Relay",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ] 
+                        }
+                    ]
+                },
+                {
+                    "name" : "Address loop",
+                    "type" : "Address loop",
+                    "units" : [
+                        {
+                            "name" : "А2ДПИ" , "type" : "Smoke detector",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]
+                        },
+                        {
+                            "name" : "А3ДПИ" , "type" : "Smoke detector",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]
+                        },
+                        {
+                            "name" : "АТИ" , "type" : "Temperature detector",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]},
+                        {
+                            "name" : "ИР-П" , "type" : "Manual detector",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]
+                        },
+                        {
+                            "name" : "ИР-Пуск" , "type" : "Manual detector",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]
+                        },
+                        {"name" : "АР-мини" , "type" : "Address extender", "maxUnaddresCount" : "4"},
+                        {"name" : "АР1" , "type" : "Address extender", "maxUnaddresCount" : "4"},
+                        {"name" : "АР5" , "type" : "Address extender", "maxUnaddresCount" : "5"},
+                        {"name" : "ОСЗ" , "type" : "Siren",
+                            "stages" : [
+                                {"name" : "turned no"},
+                                {"name" : "turned off"}
+                            ]
+                        },
+                        {"name" : "МК3 мини" , "type" : "Short circuit isolator"},
+                        {"name" : "МК3" , "type" : "Short circuit isolator"},
+                        {"name" : "АОПИ" , "type" : "IR detector",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "АОПИ-Штора" , "type" : "IR detector",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "ИРС" , "type" : "Glass break detector",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "АМК" , "type" : "Address reed switch",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "АМК2" , "type" : "Address reed switch",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "ИСМ22" , "type" : "Executive module", "maxRelayCount" : "2"},
+                        {"name" : "ИСМ220" , "type" : "Executive module", "maxRelayCount" : "1", "maxUnaddresCount" : "4"},
+                        {"name" : "ИСМ5" , "type" : "Executive module", "TODO" : true}, 
+                        {"name" : "ИСМ-220 исп.4" , "type" : "Executive module", "maxRelayCount" : "2", "maxUnaddresCount" : "4"},
+                        {"name" : "ИР-Охрана" , "type" : "Manual detector",
+                            "stages" : [
+                                {"name" : "normal"},
+                                {"name" : "triggered"}
+                            ]
+                        },
+                        {"name" : "МПТ10" , "type" : "Fire extinguishing control", "maxUnaddresCount" : "10"}
+                    ]
+                },
+                {
+                    "name" : "RS-485",
+                    "type" : "Serial Port",
+                    "units" : [
+                        {"name" : "KA-2", "type" : "Address loop controller",
+                            "units" : [
+                                {
+                                    "name" : "door", "license" : "",
+                                    "stages" : [
+                                        {"name" : "open"},
+                                        {"name" : "close"}
+                                    ],
+                                    "units" : [
+                                        {
+                                            "name" : "Button",  "type" : "button", 
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ] 
+                                        },
+                                        {
+                                            "name" : "Reed switch", "type" : "reed switch",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "Reader", "type" : "reader",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "relay", "type" : "Two Phase Relay",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ] 
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name" : "Address loop",
+                                    "type" : "Address loop",
+                                    "units" : [
+                                        {
+                                            "name" : "А2ДПИ" , "type" : "Smoke detector",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "А3ДПИ" , "type" : "Smoke detector",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "АТИ" , "type" : "Temperature detector",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]},
+                                        {
+                                            "name" : "ИР-П" , "type" : "Manual detector",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "ИР-Пуск" , "type" : "Manual detector",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]
+                                        },
+                                        {"name" : "АР-мини" , "type" : "Address extender", "maxUnaddresCount" : "4"},
+                                        {"name" : "АР1" , "type" : "Address extender", "maxUnaddresCount" : "4"},
+                                        {"name" : "АР5" , "type" : "Address extender", "maxUnaddresCount" : "5"},
+                                        {"name" : "ОСЗ" , "type" : "Siren",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ]
+                                        },
+                                        {"name" : "МК3 мини" , "type" : "Short circuit isolator"},
+                                        {"name" : "МК3" , "type" : "Short circuit isolator"},
+                                        {"name" : "АОПИ" , "type" : "IR detector",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "АОПИ-Штора" , "type" : "IR detector",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "ИРС" , "type" : "Glass break detector",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "АМК" , "type" : "Address reed switch",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "АМК2" , "type" : "Address reed switch",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "ИСМ22" , "type" : "Executive module", "maxRelayCount" : "2"},
+                                        {"name" : "ИСМ220" , "type" : "Executive module", "maxRelayCount" : "1", "maxUnaddresCount" : "4"},
+                                        {"name" : "ИСМ5" , "type" : "Executive module", "TODO" : true}, 
+                                        {"name" : "ИСМ-220 исп.4" , "type" : "Executive module", "maxRelayCount" : "2", "maxUnaddresCount" : "4"},
+                                        {"name" : "ИР-Охрана" , "type" : "Manual detector",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {"name" : "МПТ10" , "type" : "Fire extinguishing control", "maxUnaddresCount" : "10"}
+                                    ]
+                                }
+                            ]
+                        },
+                        {"name" : "КД-2", "type" : "Code reader controller", 
+                            "uints" :[
+                                {
+                                    "name" : "door1", "license" : "",
+                                    "stages" : [
+                                        {"name" : "open"},
+                                        {"name" : "close"}
+                                    ],
+                                    "units" : [
+                                        {
+                                            "name" : "Button",  "type" : "button", 
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ] 
+                                        },
+                                        {
+                                            "name" : "Reed switch", "type" : "reed switch",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "Reader", "type" : "reader",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "relay", "type" : "Two Phase Relay",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ] 
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name" : "door2", 
+                                    "license" : "",
+                                    "stages" : [
+                                        {"name" : "open"},
+                                        {"name" : "close"}
+                                    ],
+                                    "units" : [
+                                        {
+                                            "name" : "Button",  "type" : "button", 
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ] 
+                                        },
+                                        {
+                                            "name" : "Reed switch", "type" : "reed switch",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "Reader", "type" : "reader",
+                                            "stages" : [
+                                                {"name" : "normal"},
+                                                {"name" : "triggered"}
+                                            ]
+                                        },
+                                        {
+                                            "name" : "relay", "type" : "Two Phase Relay",
+                                            "stages" : [
+                                                {"name" : "turned no"},
+                                                {"name" : "turned off"}
+                                            ] 
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {"name" : "БИУ", "type" : "Display and control unit", "TODO" : true }
+                    ]
+                }
             ]
-        },
-        {
-            "type" : "securitySystem",
-            "models": [
-                { "brand" : "Rubicon", "model": "PPK-M", "firmware" : "auto", "connectionType" : ["rs-485"] }
-            ]
-        }        
+        }
     ]
 }

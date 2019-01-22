@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"log"
 	"unsafe"
 )
@@ -112,8 +111,9 @@ func (s *snid) serialNumber() uint32 {
 	return ((s.sn >> 8) & 0xFFFF)
 }
 
-func (s *snid) addressPlume() uint16 {
-	return ((s.id & 0x7FFF) >> 12)
+func (s *snid) addressLoop() uint16 {
+	result := ((s.id >> 12) & 0x7) - 1
+	return result
 }
 
 func (s *snid) shortAddress() uint16 {
@@ -154,7 +154,6 @@ func newRequestPackage(isMaster bool, reciverAddres hid, infoPart command, seque
 	newPackage.avuIsMaster(isMaster)
 	newPackage.CrcValue = calcCrcCcitt(newPackage.toCrcBuffer(), 0x0000)
 	*sequenceNumber++
-	fmt.Println("Count:", *sequenceNumber)
 	return newPackage
 }
 

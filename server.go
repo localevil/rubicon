@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net"
 
 	"./structs"
@@ -11,14 +11,14 @@ func main() {
 	listener, err := net.Listen("tcp", ":2000")
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	defer listener.Close()
-	fmt.Println("Server is listening")
+	log.Println("Server is listening")
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			conn.Close()
 			continue
 		}
@@ -33,14 +33,14 @@ func handleConnection(conn net.Conn) {
 		buff := make([]byte, (1024 * 4))
 		n, err := conn.Read(buff)
 		if n == 0 || err != nil {
-			fmt.Println("Read error: ", err)
+			log.Println("Read error: ", err)
 			break
 		}
 
-		fmt.Println(buff[:n])
+		log.Println(buff[:n])
 
 		t.Deserialization(buff, n)
-		fmt.Println(t)
+		log.Println(t)
 	}
 
 }

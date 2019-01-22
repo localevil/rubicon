@@ -2,8 +2,7 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
-	"reflect"
+	"log"
 	"unsafe"
 )
 
@@ -24,38 +23,57 @@ func (c *commandBase) size() uint8 {
 	return uint8(unsafe.Sizeof(c.command))
 }
 
-type recivedDate interface {
-	deserialization([]byte)
+type response interface {
+	isNewEvent() bool
+	isADSearchInProgress() bool
+	isNewStatuses() bool
+	getStateword() uint8
+	getCommand() uint8
+	getRetcode() uint16
 }
 
-type response struct {
+type responseBase struct {
 	stateword uint8
 	command   uint8
 	retcode   uint16
 }
 
-func size(T interface{}) {
-	r := reflect.TypeOf(T)
-	size := binary.Size(r)
-	fmt.Println(size)
+func (r *responseBase) isNewEvent() bool {
+	return (r.stateword & 0x08) == 0x08
 }
 
-func decryptStateWord(stateWord uint8) {
-	fmt.Print("States: ")
-	if stateWord == 0 {
-		fmt.Print(" NORMAL ")
-	} else {
-		if stateWord&0x08 == 0x08 {
-			fmt.Print(" PROTOCOL ")
-		}
-		if stateWord&0x40 == 0x40 {
-			fmt.Print("SERIAL_SEARCH_RUNNING")
-		}
-		if stateWord&0x80 == 0x80 {
-			fmt.Print(" NEW_STATUSES")
-		}
+func (r *responseBase) isADSearchInProgress() bool {
+	return (r.stateword & 0x40) == 0x40
+}
+
+func (r *responseBase) isNewStatuses() bool {
+	return (r.stateword & 0x80) == 0x80
+}
+
+func (r *responseBase) getStateword() uint8 {
+	return r.stateword
+}
+
+func (r *responseBase) getCommand() uint8 {
+	return r.command
+}
+func (r *responseBase) getRetcode() uint16 {
+	return r.retcode
+}
+
+func decryptStateWord(command response) string {
+	resp := "States: "
+	if command.isNewEvent() {
+		resp += "PROTOCOL "
 	}
-	fmt.Print("\n")
+	if command.isADSearchInProgress() {
+		resp += "SERIAL_SEARCH_RUNNING"
+	}
+	if command.isNewStatuses() {
+		resp += " NEW_STATUSES"
+	}
+	resp += "\n"
+	return resp
 }
 
 const basicCodesConst uint16 = 0x00 << 8
@@ -174,13 +192,18 @@ var returnCodeMap = map[uint16]string{
 	93: "NEEDRESET",
 	94: "NO_RIGHTS"}
 
-func newResponse(buf []byte) *response {
-	r := response{}
+func newResponse(buf []byte) *responseBase {
+	r := responseBase{}
 	r.stateword = uint8(buf[0])
 	r.command = uint8(buf[1])
 	r.retcode = binary.LittleEndian.Uint16(buf[2:4])
-	decryptStateWord(r.stateword)
-	fmt.Println("Return code:", returnCodeMap[r.retcode])
+	stateWord := decryptStateWord(&r)
+	if stateWord != "States: \n" {
+		log.Printf(stateWord)
+	}
+	if r.retcode != 0 {
+		log.Println("Return code:", returnCodeMap[r.retcode])
+	}
 	return &r
 }
 
@@ -193,7 +216,7 @@ func newHandShake() *handShake {
 }
 
 type handShakeResponse struct {
-	response
+	responseBase
 	version       uint8
 	typeM         uint8
 	timeout       uint32
@@ -205,7 +228,7 @@ type handShakeResponse struct {
 
 func (h *handShakeResponse) deserialization(buf []byte) {
 	*h = handShakeResponse{
-		response:      *newResponse(buf),
+		responseBase:  *newResponse(buf),
 		version:       uint8(buf[4]),
 		typeM:         uint8(buf[5]),
 		timeout:       binary.LittleEndian.Uint32(buf[6:10]),
@@ -226,7 +249,7 @@ func newFirmwareVersion() *firmwareVersion {
 }
 
 type firmwareVersionResponse struct {
-	response
+	responseBase
 	hardware   uint32
 	build      uint32
 	time       uint32
@@ -234,14 +257,14 @@ type firmwareVersionResponse struct {
 	clientCode uint32
 }
 
-func (f *firmwareVersionResponse) deserialization(buf []byte) {
-	*f = firmwareVersionResponse{
-		response:   *newResponse(buf),
-		hardware:   binary.LittleEndian.Uint32(buf[4:8]),
-		build:      binary.LittleEndian.Uint32(buf[8:12]),
-		time:       binary.LittleEndian.Uint32(buf[12:16]),
-		serial:     binary.LittleEndian.Uint32(buf[16:20]),
-		clientCode: binary.LittleEndian.Uint32(buf[20:])}
+func newFirmwareVersionResponse(buf []byte) *firmwareVersionResponse {
+	return &firmwareVersionResponse{
+		responseBase: *newResponse(buf),
+		hardware:     binary.LittleEndian.Uint32(buf[4:8]),
+		build:        binary.LittleEndian.Uint32(buf[8:12]),
+		time:         binary.LittleEndian.Uint32(buf[12:16]),
+		serial:       binary.LittleEndian.Uint32(buf[16:20]),
+		clientCode:   binary.LittleEndian.Uint32(buf[20:22])}
 }
 
 type statusWord struct {
@@ -253,12 +276,12 @@ func newStatusWord() *statusWord {
 }
 
 type statusWordResponse struct {
-	response
+	responseBase
 }
 
-func (s *statusWordResponse) deserialization(buf []byte) {
-	*s = statusWordResponse{
-		response: *newResponse(buf)}
+func newStatusWordResponse(buf []byte) *statusWordResponse {
+	return &statusWordResponse{
+		responseBase: *newResponse(buf)}
 }
 
 type fileList struct {
@@ -281,7 +304,7 @@ func (f *fileList) size() uint8 {
 }
 
 type fileListResponse struct {
-	response
+	responseBase
 	num   uint16
 	files [30]file
 }
@@ -310,9 +333,9 @@ func (s *fileListResponse) deserialization(buf []byte) {
 		begin += 8
 	}
 	*s = fileListResponse{
-		response: *newResponse(buf),
-		num:      num,
-		files:    files}
+		responseBase: *newResponse(buf),
+		num:          num,
+		files:        files}
 }
 
 type ka2Var struct {
@@ -366,20 +389,20 @@ func (c *commandToUnit) size() uint8 {
 }
 
 type commandToUnitResponse struct {
-	response
+	responseBase
 	snid    snid
 	evcode  uint16
 	userNum uint16
 }
 
-func (s *commandToUnitResponse) deserialization(buf []byte) {
+func newCommandToUnitResponse(buf []byte) *commandToUnitResponse {
 	snid := snid{}
 	snid.deserialization(buf[4:10])
-	*s = commandToUnitResponse{
-		response: *newResponse(buf),
-		snid:     snid,
-		evcode:   binary.LittleEndian.Uint16(buf[10:12]),
-		userNum:  binary.LittleEndian.Uint16(buf[12:14])}
+	return &commandToUnitResponse{
+		responseBase: *newResponse(buf),
+		snid:         snid,
+		evcode:       binary.LittleEndian.Uint16(buf[10:12]),
+		userNum:      binary.LittleEndian.Uint16(buf[12:14])}
 }
 
 type takeFindSnOnAS struct {
@@ -403,7 +426,7 @@ func (t *takeFindSnOnAS) size() uint8 {
 }
 
 type takeFindSnOnASResponse struct {
-	response
+	responseBase
 	num     uint8
 	serials [40]snid
 }
@@ -418,9 +441,9 @@ func (t *takeFindSnOnASResponse) deserialization(buf []byte) {
 	}
 
 	*t = takeFindSnOnASResponse{
-		response: *newResponse(buf),
-		num:      num,
-		serials:  snids}
+		responseBase: *newResponse(buf),
+		num:          num,
+		serials:      snids}
 }
 
 type readFile struct {
@@ -455,7 +478,7 @@ func (r *readFile) size() uint8 {
 }
 
 type readFileResponse struct {
-	response
+	responseBase
 	id   uint16
 	rzrv uint8
 	len  uint8
@@ -465,12 +488,12 @@ type readFileResponse struct {
 
 func (r *readFileResponse) deserialization(buf []byte) {
 	*r = readFileResponse{
-		response: *newResponse(buf),
-		id:       binary.LittleEndian.Uint16(buf[4:6]),
-		rzrv:     byte(buf[6]),
-		len:      byte(buf[7]),
-		addr:     binary.LittleEndian.Uint32(buf[8:12]),
-		data:     buf[12:]}
+		responseBase: *newResponse(buf),
+		id:           binary.LittleEndian.Uint16(buf[4:6]),
+		rzrv:         byte(buf[6]),
+		len:          byte(buf[7]),
+		addr:         binary.LittleEndian.Uint32(buf[8:12]),
+		data:         buf[12:]}
 }
 
 type newStatus struct {
@@ -566,13 +589,13 @@ func (s *snidInfo) size() uint8 {
 }
 
 type newStatusResponse struct {
-	response
+	responseBase
 	sequence  uint8
 	num       uint8
 	sindInfos [15]snidInfo
 }
 
-func (t *newStatusResponse) deserialization(buf []byte) {
+func newNewStatusResponse(buf []byte) *newStatusResponse {
 	num := uint8(buf[5])
 	var sindInfos [15]snidInfo
 	begin := uint8(6)
@@ -580,11 +603,11 @@ func (t *newStatusResponse) deserialization(buf []byte) {
 		size := begin + sindInfos[i].size()
 		sindInfos[i] = *newSnidInfo(buf[begin:size])
 	}
-	*t = newStatusResponse{
-		response:  *newResponse(buf),
-		sequence:  buf[4],
-		num:       num,
-		sindInfos: sindInfos}
+	return &newStatusResponse{
+		responseBase: *newResponse(buf),
+		sequence:     buf[4],
+		num:          num,
+		sindInfos:    sindInfos}
 }
 
 type takeEvent struct {
@@ -617,7 +640,7 @@ type logEvent struct {
 	data            []byte
 }
 
-func newlogEvent(buf []byte) *logEvent {
+func newLogEvent(buf []byte) *logEvent {
 	var dst, src snid
 	dst.deserialization(buf[4:10])
 	src.deserialization(buf[10:16])
@@ -637,16 +660,16 @@ func newlogEvent(buf []byte) *logEvent {
 }
 
 type takeEventResponse struct {
-	response
+	responseBase
 	index uint32
 	event logEvent
 }
 
 func newTakeEventResponse(buf []byte) *takeEventResponse {
 	return &takeEventResponse{
-		response: *newResponse(buf),
-		index:    binary.LittleEndian.Uint32(buf[4:8]),
-		event:    *newlogEvent(buf[8:])}
+		responseBase: *newResponse(buf),
+		index:        binary.LittleEndian.Uint32(buf[4:8]),
+		event:        *newLogEvent(buf[8:])}
 }
 
 //TODO

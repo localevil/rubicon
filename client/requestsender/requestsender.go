@@ -1,7 +1,7 @@
 package requestsender
 
 import (
-	"fmt"
+	"log"
 	"net"
 	"sync"
 )
@@ -50,30 +50,30 @@ func (s *Sender) handleCommand(request Request) {
 	buffer := make([]byte, 265)
 	size, err := s.conn.Read(buffer)
 	if size == 0 || err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	if request.Handler != nil {
 		request.Handler(buffer[:size])
 	}
-	fmt.Println("Finish sending: ", request.Name)
 }
 
 func (s *Sender) process() {
 	s.wg.Add(1)
 	defer s.wg.Done()
-	fmt.Println("Start sending commands")
+	log.Println("Start sending commands")
 	for request := range s.queue {
-		fmt.Println("Start sending: ", request.Name)
-		fmt.Printf("> % x\n", request.Buffer)
+		if request.Name != "" {
+			log.Println("Sending:", request.Name)
+		}
 		_, err := s.conn.Write(request.Buffer)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 		s.handleCommand(request)
 	}
-	fmt.Println("Stop sending commands")
+	log.Println("Stop sending commands")
 }
 
 //AddCommand put conmmand to queue in sender
